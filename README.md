@@ -52,3 +52,25 @@ Verify that the metastore has been restored successfully by checking the metadat
 Python
 
 spark.sql("SHOW TABLES").show()
+===================================
+import json
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName("HiveMetastoreRestore").enableHiveSupport().getOrCreate()
+
+metastore_backup = json.loads(dbutils.fs.head("/backup/metastore_backup.json"))
+
+for db, tables in metastore_backup.items():
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {db}")
+    for table, metadata in tables.items():
+        create_table_stmt = f"CREATE TABLE {db}.{table} ("
+        columns = []
+        for row in metadata:
+            if row['col_name'] and row['data_type']:
+                columns.append(f"{row['col_name']} {row['data_type']}")
+        create_table_stmt += ", ".join(columns) + ")"
+        try:
+            spark.sql(create_table_stmt)
+        except Exception as e:
+            print(f"Error creating table {db}.{table}: {e}")
+
